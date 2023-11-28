@@ -11,18 +11,32 @@ import (
 
 func Run[T any](functions []func() (T, error)) ConcurrencyRunner {
 	var (
-		wg      sync.WaitGroup
 		mu      sync.Mutex
 		results []Result
+		err     error
 	)
 	g, _ := errgroup.WithContext(context.Background())
 
 	for _, fn := range functions {
-		wg.Add(1)
 		fn := fn
 
 		g.Go(func() error {
-			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					var (
+						ok bool
+					)
+
+					err, ok = r.(error)
+
+					if !ok {
+						results = append(results, Result{
+							Result: nil,
+							Error:  fmt.Errorf("panic error: %v", r)})
+					}
+				}
+			}()
+
 			result, err := fn()
 
 			mu.Lock()
@@ -32,18 +46,17 @@ func Run[T any](functions []func() (T, error)) ConcurrencyRunner {
 				results = append(results, Result{
 					Result: result,
 					Error:  nil})
-			} else {
-				results = append(results, Result{
-					Result: nil,
-					Error:  err})
 			}
 
 			return err
 		})
 	}
 
-	wg.Wait()
-	_ = g.Wait()
+	if err = g.Wait(); err != nil {
+		results = append(results, Result{
+			Result: nil,
+			Error:  err})
+	}
 
 	return ConcurrencyRunner{Results: results}
 }

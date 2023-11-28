@@ -37,8 +37,7 @@ func example2() {
 				fmt.Printf("val:%d\n", val)
 				return &Test{Id: "test", Value: val}, nil
 			}
-
-			return nil, fmt.Errorf("Value bigger than 10")
+			panic("bigger than ten")
 		})
 	}
 
